@@ -1,0 +1,435 @@
+{#
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the code directory.
+ */
+#}
+{% extends '@admin/default_frame.twig' %}
+
+{% set menus = ['setting', 'facebook_ads_toolbox'] %}
+
+{% block title %}Facebook連携プラグイン{% endblock %}
+{% block sub_title %}Facebookページ ショップタブと広告配信の設定{% endblock %}
+
+{% block main %}
+<div class="c-contentsArea__cols">
+    <div class="c-contentsArea__primaryCol">
+        <div class="c-primaryCol">
+            <div class="card rounded border-0 mb-4">
+                <div class="card-header">
+                    <a href="#" id="mybtn" class="btn btn-info btn-xs pull-right">Facebook連携の設定画面を開く</a>
+                    <h4 class="box-title font-weight-bold">Facebook連携の設定</h4>
+                </div>
+                <div class="card-body">
+                  {{ form_start(form, {'attr': {'id': 'fbform'}}) }}
+                  <p>
+                  ボタンをクリックしウィザードに進む事で下記の設定を行います。
+                  </p>
+                  <p>
+                  1. 連携先Facebookページの選択<br/>
+                  2. サイトに設置するFacebookピクセルの選択<br/>
+                  3. 製品情報のアップロードとショップタブの設定<br/>
+                  </p>
+                  <p>
+                  広告の配信は設定画面内の「広告を作成」ボタンをクリックし、広告マネージャーでの操作を行います。
+                  </p>
+                  <p>
+                  Facebook広告については無料のEラーニングプログラム「Blueprint」をご覧ください。<br/>
+                  <a href="https://www.facebook.com/blueprint">https://www.facebook.com/blueprint</a>
+                  </p>
+                  <div style="display: none">
+                  {{ form_widget(form) }}
+                  <input type="submit" value="Save">
+                  </div>
+                  {{ form_widget(form._token) }}
+                  {{ form_end(form) }}
+                </div>
+            </div>
+
+            <div class="card rounded border-0 mb-4">
+                <div class="card-header">
+                    <h4 class="box-title font-weight-bold">設定情報(手動での広告配信を設定する際に利用します)</h4>
+                </div><!-- /.box-header -->
+                <div class="card-body">
+                  <h4 class="box-title">製品フィードのURL</h4>
+                  <a
+                    target="_blank"
+                    href="{{ url('plugin_FacebookAdsToolbox_feed') }}"
+                  >{{ url('plugin_FacebookAdsToolbox_feed') }}</a>
+                  <h4 class="box-title">設置済みFacebookピクセルのID</h4>
+                  {% if fb_pixel.fb_pixel is not empty %}
+                  <a id="label_fb_pixel" href="https://www.facebook.com/analytics/{{ fb_pixel.fb_pixel }}">{{ fb_pixel.fb_pixel }}</a>(Facebookアナリティクスへ)
+                  {% else %}
+                  Facebook連携の設定を行なってください。
+                  {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+window.facebookAdsToolboxConfig = {
+  hasGzipSupport: 'false',
+  popupOrigin: 'https://www.facebook.com/ads/dia',
+  platform: 'EC-CUBE4',
+  pixel: {
+    pixelId: '{{ fb_pixel.fb_pixel }}'
+  },
+  diaSettingId: '{{ fb_pixel.merchant_settings }}',
+  store: {
+    canSetupShop: true,
+    baseUrl: window.location.protocol + '//' + window.location.host,
+    baseCurrency: 'JPY',
+    timezoneId: '32400', // Asia/Tokyo
+    storeName: '{{ BaseInfo.shop_name }}',
+    version: '{{ eccubeVersion }}',
+    php_version: '{{ phpVersion }}',
+    plugin_version: '{{ pluginVersion }}'
+  },
+  feed: {
+    enabled:true,
+    format:"TSV",
+    totalVisibleProducts: {{ totalItemCount }}
+  },
+  feedPrepared: {
+    feedUrl: '{{ url('plugin_FacebookAdsToolbox_feed') }}',
+    samples: [[
+    ]]
+  }
+};
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+'use strict';
+
+var _popup_communicator = require('./popup_communicator.jsx');
+
+var _popup_communicator2 = _interopRequireDefault(_popup_communicator);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var FacebookPixelSelectorSDK = {
+
+  _impl: undefined,
+  _communicator: undefined,
+  _popupPath: '/ads/dia',
+
+  _log: function _log() {
+    var LOG_PREFIX = 'FacebookPixelSelectorSDK:';
+    var args = Array.prototype.slice.call(arguments);
+    args.unshift(LOG_PREFIX + ' ');
+    console.log.apply(console, args);
+  },
+  _getPixelSelectorPramas: function _getPixelSelectorPramas() {
+    if (this._impl) {
+      return [
+        'origin=' + window.location.protocol + '//' + window.location.host,
+        'merchant_settings_id={{ fb_pixel.merchant_settings }}'
+      ];
+    } else {
+      return [];
+    }
+  },
+  _genOnclick: function _genOnclick(impl) {
+    var _this = this;
+
+    this._impl = impl;
+    this._impl.getParams = this._getPixelSelectorPramas.bind(this);
+    this._log('implementation installed');
+    if (this._communicator == undefined) {
+      this._communicator = new _popup_communicator2.default(this._popupPath, this._impl);
+      this._log('communicator created with path:', this._popupPath);
+    }
+    return function () {
+      _this._communicator.openPopup();
+    };
+  },
+  bind: function bind(elemid, impl) {
+    var elem = document.getElementById(elemid);
+    if (elem) {
+      elem.onclick = this._genOnclick(impl);
+      this._log('found and binded element:', elemid);
+    }
+  },
+  test: function test(impl) {
+    if (impl) {
+      if (!impl.getPixelId) {
+        this._log('You must implement getPixelId');
+      }
+      if (!impl.getTimeZoneId) {
+        this._log('You must implement getTimeZoneId');
+      }
+      if (!impl.getStoreName) {
+        this._log('You must implement getStoreName');
+      }
+      if (!impl.getBaseCurrency) {
+        this._log('You must implement getBaseCurrency');
+      }
+      if (!impl.getSource) {
+        this._log('You must implement getSource');
+      }
+    } else {
+      this._log('Impl is not validate implemetation');
+    }
+  }
+}; /**
+    * Copyright (c) 2016-present, Facebook, Inc.
+    * All rights reserved.
+    *
+    * This source code is licensed under the BSD-style license found in the
+    * LICENSE file in the root directory of this source tree. An additional grant
+    * of patent rights can be found in the PATENTS file in the code directory.
+    */
+
+window.FacebookPixelSelectorSDK = FacebookPixelSelectorSDK;
+
+},{"./popup_communicator.jsx":2}],2:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }(); /**
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      * Copyright (c) 2016-present, Facebook, Inc.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      * All rights reserved.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      *
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      * This source code is licensed under the BSD-style license found in the
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      * LICENSE file in the root directory of this source tree. An additional grant
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      * of patent rights can be found in the PATENTS file in the code directory.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      */
+
+var _utils = require('./utils.js');
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var FacebookPopupCommunicator = function () {
+  function FacebookPopupCommunicator(popupPath, impl) {
+    _classCallCheck(this, FacebookPopupCommunicator);
+
+    this._messageChannelConnected = false;
+    this._fbMessageChannel = undefined;
+    this._popupWindow = undefined;
+    this._popupOrigin = 'https://www.facebook.com/';
+    this._popupPath = popupPath || '';
+    this._impl = impl;
+  }
+
+  _createClass(FacebookPopupCommunicator, [{
+    key: '_bindMessageEvents',
+    value: function _bindMessageEvents() {
+      window.addEventListener('message', this._receiveMessage.bind(this), false);
+      if ((0, _utils.isIE)() && window.MessageChannel) {
+        this._messageChannelConnected = false;
+        this._fbMessageChannel = new MessageChannel();
+        this._fbMessageChannel.port1.onmessage = this._receiveMessageFromMessageChannel;
+      }
+    }
+  }, {
+    key: '_receiveMessage',
+    value: function _receiveMessage(event) {
+      var origin = event.origin || event.originalEvent.origin;
+      //console.log('ev:', this, event, origin, this._popupOrigin);
+      if ((0, _utils.urlFromSameDomain)(origin, this._popupOrigin)) {
+        this._impl.on && this._impl.on(event.message, event.data);
+      }
+    }
+  }, {
+    key: 'openPopup',
+    value: function openPopup(options) {
+      var options = options || {};
+      var width = options.width || 1153;
+      var height = options.height || 808;
+      var topPos = screen.height / 2 - height / 2;
+      var leftPos = screen.width / 2 - width / 2;
+
+      if (this._popupWindow) {
+        this._popupWindow.close();
+      }
+
+      if (this._popupWindow == undefined) {
+        this._bindMessageEvents();
+      }
+      this._popupWindow = window.open(this._popupOrigin + '/login.php?display=popup&next=' + encodeURIComponent(this._popupOrigin + '/' + this._popupPath + '/?' + this._impl.getParams().join('&')), 'DiaWizard', ['toolbar=no', 'location=no', 'directories=no', 'status=no', 'menubar=no', 'scrollbars=no', 'resizable=no', 'copyhistory=no', 'width=' + width, 'height=' + height, 'top=' + topPos, 'left=' + leftPos].join(','));
+
+      if ((0, _utils.isIE)() && window.MessageChannel) {
+        this._connectIEMessageChannel();
+      }
+    }
+  }, {
+    key: '_connectIEMessageChannel',
+    value: function _connectIEMessageChannel() {
+      if (!this._messageChannelConnected) {
+        setTimeout(function () {
+          this._popupWindow.postMessage({ message: "Facebook Ads Toolbox connect message" }, "*", [this._fbMessageChannel.port2]);
+        }.bind(this), 500);
+      }
+    }
+  }, {
+    key: '_receiveMessageFromMessageChannel',
+    value: function _receiveMessageFromMessageChannel(e) {
+      if (e.data.message === 'Facebook Ads Toolbox connection made') {
+        this._messageChannelConnected = true;
+        return;
+      }
+      this._receiveMessage(e);
+    }
+  }, {
+    key: 'sendDiaConfigToPopup',
+    value: function sendDiaConfigToPopup() {
+      if (!this._messageChannelConnected) {
+        setTimeout(function () {
+          console.log({ type: 'dia settings', params: {'clientSetup':window.facebookAdsToolboxConfig} });
+          this._popupWindow.postMessage({ type: 'dia settings', params: {'clientSetup':window.facebookAdsToolboxConfig} }, "*");
+        }.bind(this), 500);
+      }
+    }
+  }, {
+    key: 'ackToPopup',
+    value: function ackToPopup(message_type) {
+      if (!this._messageChannelConnected) {
+        setTimeout(function () {
+          console.log({ type: message_type, params: {'clientSetup':window.facebookAdsToolboxConfig} });
+          this._popupWindow.postMessage({ type: message_type, params: {'clientSetup':window.facebookAdsToolboxConfig} }, "*");
+        }.bind(this), 500);
+      }
+    }
+  }]);
+  window.FacebookPopupCommunicator = FacebookPopupCommunicator;
+  return FacebookPopupCommunicator;
+}();
+
+exports.default = FacebookPopupCommunicator;
+
+},{"./utils.js":3}],3:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.onPageLoad = onPageLoad;
+exports.isIE = isIE;
+exports.parseURL = parseURL;
+exports.urlFromSameDomain = urlFromSameDomain;
+exports.safeJSONParse = safeJSONParse;
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the code directory.
+ */
+
+function onPageLoad(runfn) {
+  if (!runfn) {
+    return;
+  }
+
+  if (document.readyState === 'interactive') {
+    // in case the document is already rendered
+    runfn();
+  } else if (document.addEventListener) {
+    // modern browsers
+    document.addEventListener('DOMContentLoaded', runfn);
+  } else {
+    document.attachEvent('onreadystatechange', function () {
+      // IE <= 8
+      if (document.readyState === 'complete') {
+        runfn();
+      }
+    });
+  }
+};
+
+function isIE() {
+  return (/MSIE |Trident\/|Edge\//.test(window.location.userAgent)
+  );
+};
+
+function parseURL(url) {
+  var parser = document.createElement('a');
+  parser.href = url;
+  return parser;
+};
+
+function urlFromSameDomain(url1, url2) {
+  var u1 = parseURL(url1);
+  var u2 = parseURL(url2);
+  return u1.protocol === u2.protocol && u1.host === u2.host;
+};
+
+function safeJSONParse(jsonstr) {
+  try {
+    return JSON.parse(jsonstr);
+  } catch (e) {
+    console.log('Failed parse jsonstr:' + jsonstr);
+    return undefined;
+  }
+};
+
+},{}]},{},[1]);
+</script>
+<script>
+  var impl = {
+    getPixelId: function() { return '{{ fb_pixel.fb_pixel|default('') }}'; },
+    getTimeZoneId: function() { return 1; },
+    getStoreName: function() { return '{{ BaseInfo.shop_name }}'; },
+    getBaseCurrency: function() { return 'USD'; },
+    getSource: function() { return 'EC-CUBE4'; },
+    on: function(evmessage, evdata) {
+      console.log('msg:', evmessage, 'data:', evdata);
+      var _this = window.FacebookPixelSelectorSDK._communicator;
+      var evswitch = {
+        'get dia settings': function getDiaSettings(params) {
+          _this.sendDiaConfigToPopup();
+        },
+
+        'set merchant settings': function setMerchantSettings(params) {
+          if (!params.setting_id) {
+            console.error('Facebook Ads Extension Error: find no merchant settings', params);
+            return;
+          }
+          console.log('set merchant id:', params.setting_id);
+          $('#config_merchant_settings').val(params.setting_id);
+          window.facebookAdsToolboxConfig.diaSettingId = params.setting_id;
+          _this.ackToPopup('ack set merchant settings');
+          setTimeout(function(
+          ){
+            $('#fbform').submit();
+          }, 1000);
+        },
+
+        'set pixel': function setPixel(params) {
+          if (!params.pixel_id) {
+            console.error('Facebook Ads Extension Error: got no pixel_id', params);
+            return;
+          }
+          $('#config_fb_pixel').val(params.pixel_id);
+          window.facebookAdsToolboxConfig.pixel.pixelId = params.pixel_id;
+          _this.ackToPopup('ack set pixel');
+          if ($('#config_merchant_settings').val() > 0) {
+            //$('#fbform').submit();
+            $.get('{{ url('plugin_FacebookAdsToolbox_update') }}', { type:"pixel", id:params.pixel_id});
+            $('#label_fb_pixel').text(params.pixel_id);
+            $('#label_fb_pixel').attr('href', 'https://www.facebook.com/analytics/' + params.pixel_id);
+          }
+        },
+      };
+
+      if (evdata !== null && (typeof evdata === 'undefined' ? 'undefined' : typeof(evdata)) === 'object' && evdata.type) {
+        evswitch[evdata.type] && evswitch[evdata.type](evdata.params);
+      } else {
+        console.error('Facebook Ads Extension Error: get unsupport msg:', evdata);
+      }
+    }
+  };
+  window.FacebookPixelSelectorSDK.test(impl);
+  window.FacebookPixelSelectorSDK.bind('mybtn', impl);
+</script>
+{% endblock javascript %}

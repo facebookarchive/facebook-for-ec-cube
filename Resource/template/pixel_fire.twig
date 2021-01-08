@@ -1,0 +1,22 @@
+{#
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the code directory.
+ */
+#}
+<script>
+{% if fb_content_ids is defined %}
+fbq('track', '{{fb_pixel_event}}', {
+  content_ids: {{fb_content_ids|json_encode|raw}},
+  content_type: 'product',
+  value: {{fb_value|default('0,00')}},
+  currency: 'JPY'
+});
+{% else %}
+fbq('track', '{{fb_pixel_event}}');
+{% endif %}
+</script>
